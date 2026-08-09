@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantum-circuit-smell-intelligence"
+version = "0.1.0"
+description = "Two quantum circuit optimization pipelines: qco_pipeline (neural) and qcs_pipeline (rule-mining smell intelligence)"
+requires-python = ">=3.10"
+dependencies = [
+    "qiskit>=1.0",
+    "qiskit-aer>=0.14",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+neural = ["torch>=2.2", "torch-geometric>=2.5"]
+mining = ["pyzx>=0.8", "pandas>=2.0", "pyarrow>=14.0"]
+
+[tool.setuptools.packages.find]
+include = ["qco_pipeline*", "qcs_pipeline*"]
