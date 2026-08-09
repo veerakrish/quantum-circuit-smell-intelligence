@@ -2,6 +2,7 @@
 Top-level CLI for the smell-intelligence pipeline.
 
     python -m qcs_pipeline.cli mine        --raw-dir DIR --out mined_pairs.jsonl
+    python -m qcs_pipeline.cli mine-kaggle --dataset-root DIR --out mined_pairs.jsonl [--opt-level N]
     python -m qcs_pipeline.cli build-rules --mined mined_pairs.jsonl --out rules.json [--min-frequency N]
     python -m qcs_pipeline.cli optimize    --rules rules.json --circuit path/to/circuit.qasm [--out out.qasm]
 """
@@ -17,6 +18,15 @@ logger = logging.getLogger(__name__)
 def cmd_mine(args: argparse.Namespace) -> None:
     from qcs_pipeline.mining.build_mined_dataset import build
     build(args.raw_dir, args.out)
+
+
+def cmd_mine_kaggle(args: argparse.Namespace) -> None:
+    from qcs_pipeline.mining.from_kaggle_pairs import mine_from_parquet
+    mine_from_parquet(
+        args.dataset_root, args.out,
+        opt_level_filter=args.opt_level,
+        max_rows_per_chunk=args.max_rows_per_chunk,
+    )
 
 
 def cmd_build_rules(args: argparse.Namespace) -> None:
@@ -60,6 +70,13 @@ def main() -> None:
     p_mine.add_argument("--raw-dir", type=Path, required=True)
     p_mine.add_argument("--out", type=Path, required=True)
     p_mine.set_defaults(func=cmd_mine)
+
+    p_mine_kaggle = sub.add_parser("mine-kaggle", help="Step 1 (fast path): mine from pre-transpiled Kaggle parquet pairs")
+    p_mine_kaggle.add_argument("--dataset-root", type=Path, required=True)
+    p_mine_kaggle.add_argument("--out", type=Path, required=True)
+    p_mine_kaggle.add_argument("--opt-level", type=int, default=None)
+    p_mine_kaggle.add_argument("--max-rows-per-chunk", type=int, default=None)
+    p_mine_kaggle.set_defaults(func=cmd_mine_kaggle)
 
     p_rules = sub.add_parser("build-rules", help="Step 2: canonicalize mined patterns into a rule database")
     p_rules.add_argument("--mined", type=Path, required=True)
