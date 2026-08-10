@@ -16,6 +16,14 @@ Mining does no quantum simulation at all (that only happens later, during
 verification/optimize()) — it's pure QASM parsing + difflib diffing, which
 is why this parallelizes cleanly across processes: every row's diff is
 independent of every other row, with no shared state to synchronize.
+
+Output rows deliberately omit the full raw_qasm/transpiled_qasm text —
+build_rule_database() only ever reads `mined_patterns`, so storing complete
+circuit QASM per row (some MNISQ-OptBench circuits run into the thousands
+of gates) is pure duplication of what's already in the source parquet, and
+at Kaggle scale (up to ~60k rows) is enough to exhaust the output disk
+quota on its own. `source_file` (chunk name + base_id) is kept so any row
+can still be looked up in the original parquet if needed.
 """
 from __future__ import annotations
 
@@ -83,10 +91,16 @@ def _mine_chunk_group(
                 source_id = f"{chunk_path.name}:{row.base_id}"
                 try:
                     report = mine_pair(row.input_qasm, row.target_qasm, source_file=source_id)
+                    # Deliberately NOT storing raw_qasm/transpiled_qasm here —
+                    # build_rule_database() only ever reads `mined_patterns`,
+                    # so the full circuit text (up to thousands of gates each)
+                    # would be pure duplication of what's already sitting in
+                    # the source parquet, multiplied by every mined row. That
+                    # redundancy is what filled /kaggle/working's disk quota.
+                    # `source_file` (chunk name + base_id) is enough to look
+                    # a specific row back up in the parquet if ever needed.
                     f.write(json.dumps({
                         "source_file": source_id,
-                        "raw_qasm": row.input_qasm,
-                        "transpiled_qasm": row.target_qasm,
                         "gates_removed_count": report.n_gates_removed,
                         "gates_removed_list": report.removed_gate_names,
                         "mined_patterns": [_pattern_to_dict(p) for p in report.patterns],
