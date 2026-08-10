@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, qasm2
 
 
 @dataclass
@@ -45,7 +45,7 @@ def prune_idle_wires(horiz_qasm: str) -> VerticalPair:
     2. Remove those wires from the register.
     3. Re-index the remaining wires to [0 .. k-1], preserving relative order.
     """
-    circ = QuantumCircuit.from_qasm_str(horiz_qasm)
+    circ = qasm2.loads(horiz_qasm)
     n = circ.num_qubits
 
     touched = _touched_qubits(circ)
@@ -73,7 +73,7 @@ def prune_idle_wires(horiz_qasm: str) -> VerticalPair:
 
     return VerticalPair(
         horiz_qasm=horiz_qasm,
-        balanced_qasm=balanced.qasm(),
+        balanced_qasm=qasm2.dumps(balanced),
         n_qubits_in=n,
         n_qubits_out=k,
         kept_qubits=kept_qubits,

@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, qasm2
 from qiskit.circuit import Instruction
 from torch_geometric.data import Data
 
@@ -73,7 +73,7 @@ NODE_FEATURE_DIM = NUM_GATE_TYPES + MAX_GATE_PARAMS + 2 + 1
 
 
 def qasm_to_graph(qasm: str) -> CircuitGraph:
-    circ = QuantumCircuit.from_qasm_str(qasm)
+    circ = qasm2.loads(qasm)
     n_qubits = circ.num_qubits
 
     node_feats: list[torch.Tensor] = []

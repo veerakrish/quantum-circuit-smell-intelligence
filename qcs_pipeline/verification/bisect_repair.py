@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, qasm2
 
 from qco_pipeline.verification.checksum1 import Checksum1Result, run_checksum1
 from qcs_pipeline.detector.smell_detector import Smell, matches_to_smells, rewrite_with_matches
@@ -50,7 +50,7 @@ def verify_and_repair(raw_circ: QuantumCircuit, candidate_matches: list[tuple[Ma
     accepted, quarantined = _bisect(raw_circ, candidate_matches, stats)
 
     final_circuit = rewrite_with_matches(raw_circ, accepted)
-    final_check = run_checksum1(raw_circ.qasm(), final_circuit.qasm())
+    final_check = run_checksum1(qasm2.dumps(raw_circ), qasm2.dumps(final_circuit))
     stats["n_simulations"] += 1
 
     if not final_check.passed:
@@ -81,7 +81,7 @@ def verify_and_repair(raw_circ: QuantumCircuit, candidate_matches: list[tuple[Ma
 def _check(raw_circ: QuantumCircuit, matches: list[tuple[Match, RuleEntry]], stats: dict) -> Checksum1Result:
     candidate_circ = rewrite_with_matches(raw_circ, matches)
     stats["n_simulations"] += 1
-    return run_checksum1(raw_circ.qasm(), candidate_circ.qasm())
+    return run_checksum1(qasm2.dumps(raw_circ), qasm2.dumps(candidate_circ))
 
 
 def _bisect(

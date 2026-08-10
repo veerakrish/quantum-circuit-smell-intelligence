@@ -23,7 +23,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, qasm2
 
 from qcs_pipeline.detector.smell_detector import Smell, detect, find_candidate_matches
 from qcs_pipeline.rules.rule_database import RuleDatabase
@@ -51,12 +51,12 @@ class QuantumCircuitSmellOptimizer:
 
     def detect_smells(self, raw_qasm: str) -> list[Smell]:
         """Review-only: flag matches without touching the circuit."""
-        circ = QuantumCircuit.from_qasm_str(raw_qasm)
+        circ = qasm2.loads(raw_qasm)
         smells, _ = detect(circ, self.db)
         return smells
 
     def optimize(self, raw_qasm: str) -> SmellOptimizationResult:
-        raw_circ = QuantumCircuit.from_qasm_str(raw_qasm)
+        raw_circ = qasm2.loads(raw_qasm)
         n_before = sum(raw_circ.count_ops().values())
 
         candidates = find_candidate_matches(raw_circ, self.db)
@@ -67,7 +67,7 @@ class QuantumCircuitSmellOptimizer:
             logger.warning("%d rule application(s) quarantined this run — see result.quarantined_rule_count", len(repair.quarantined))
 
         return SmellOptimizationResult(
-            optimized_qasm=repair.final_circuit.qasm(),
+            optimized_qasm=qasm2.dumps(repair.final_circuit),
             n_gates_before=n_before,
             n_gates_after=n_after,
             fidelity=repair.fidelity,

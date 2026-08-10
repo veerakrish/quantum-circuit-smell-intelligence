@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, qasm2
 
 SELF_INVERSE_GATES = {"x", "y", "z", "h", "cx", "cy", "cz", "swap", "id"}
 MERGEABLE_ROTATION_GATES = {"rz", "rx", "ry"}
@@ -41,7 +41,7 @@ class NodeLabel:
 
 
 def label_horizontal_actions(raw_qasm: str) -> list[NodeLabel]:
-    circ = QuantumCircuit.from_qasm_str(raw_qasm)
+    circ = qasm2.loads(raw_qasm)
     n = len(circ.data)
     labels = [NodeLabel(Action.KEEP) for _ in range(n)]
 
@@ -109,7 +109,7 @@ def label_horizontal_actions_fixed_point(raw_qasm: str, max_passes: int = 8) -> 
     non-MERGE_INTO_PREV) subsequence until no new cancellation/merge is found,
     then splice labels back onto the original node indices.
     """
-    circ = QuantumCircuit.from_qasm_str(raw_qasm)
+    circ = qasm2.loads(raw_qasm)
     n = len(circ.data)
     final = [Action.KEEP] * n
     merged_angle = [0.0] * n
@@ -121,7 +121,7 @@ def label_horizontal_actions_fixed_point(raw_qasm: str, max_passes: int = 8) -> 
             instr = circ.data[i]
             sub_circ.append(instr.operation, instr.qubits, instr.clbits)
 
-        sub_labels = label_horizontal_actions(sub_circ.qasm())
+        sub_labels = label_horizontal_actions(qasm2.dumps(sub_circ))
         changed = False
         new_alive: list[int] = []
         for local_i, orig_i in enumerate(alive_indices):
