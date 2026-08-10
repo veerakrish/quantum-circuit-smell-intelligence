@@ -2,7 +2,7 @@
 Top-level CLI for the smell-intelligence pipeline.
 
     python -m qcs_pipeline.cli mine        --raw-dir DIR --out mined_pairs.jsonl
-    python -m qcs_pipeline.cli mine-kaggle --dataset-root DIR --out mined_pairs.jsonl [--opt-level N]
+    python -m qcs_pipeline.cli mine-kaggle --dataset-root DIR --out mined_pairs.jsonl [--opt-level N] [--n-workers N]
     python -m qcs_pipeline.cli build-rules --mined mined_pairs.jsonl --out rules.json [--min-frequency N]
     python -m qcs_pipeline.cli optimize    --rules rules.json --circuit path/to/circuit.qasm [--out out.qasm]
 """
@@ -26,6 +26,7 @@ def cmd_mine_kaggle(args: argparse.Namespace) -> None:
         args.dataset_root, args.out,
         opt_level_filter=args.opt_level,
         max_rows_per_chunk=args.max_rows_per_chunk,
+        n_workers=args.n_workers,
     )
 
 
@@ -76,6 +77,7 @@ def main() -> None:
     p_mine_kaggle.add_argument("--out", type=Path, required=True)
     p_mine_kaggle.add_argument("--opt-level", type=int, default=None)
     p_mine_kaggle.add_argument("--max-rows-per-chunk", type=int, default=None)
+    p_mine_kaggle.add_argument("--n-workers", type=int, default=1)
     p_mine_kaggle.set_defaults(func=cmd_mine_kaggle)
 
     p_rules = sub.add_parser("build-rules", help="Step 2: canonicalize mined patterns into a rule database")
