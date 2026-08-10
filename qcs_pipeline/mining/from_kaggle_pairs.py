@@ -45,6 +45,22 @@ logger = logging.getLogger(__name__)
 REQUIRED_COLUMNS = ["base_id", "opt_level", "transpiler_seed", "input_qasm", "target_qasm"]
 
 
+def _announce(message: str, level: int = logging.INFO) -> None:
+    """Log AND print progress/summary messages.
+
+    logger.info() alone is silently swallowed in any environment that never
+    calls logging.basicConfig() (the root logger defaults to WARNING) — which
+    is exactly what happened in the Kaggle notebooks here, hiding the mining
+    summary (patterns mined, oversized windows rejected) that this pipeline's
+    correctness depends on being visible for. print() always shows up in a
+    notebook/Kaggle log regardless of logging configuration, so use both:
+    logger.* for anyone who does configure logging, print() as the guaranteed
+    fallback.
+    """
+    logger.log(level, message)
+    print(message)
+
+
 def find_pair_chunks(dataset_root: Path) -> list[Path]:
     """Locate pairs_k*.parquet files regardless of exact nesting under
     dataset_root — the Kaggle mount path nests them under final/pairs/, but
@@ -153,15 +169,15 @@ def mine_from_parquet(
         (default) runs sequentially with no multiprocessing overhead at all.
     """
     chunk_files = find_pair_chunks(dataset_root)
-    logger.info("Found %d parquet chunk file(s) under %s", len(chunk_files), dataset_root)
+    _announce("Found %d parquet chunk file(s) under %s" % (len(chunk_files), dataset_root))
 
     available = os.cpu_count() or 1
     if n_workers > available:
-        logger.warning(
+        _announce(
             "n_workers=%d exceeds os.cpu_count()=%d — this will oversubscribe "
             "and likely run SLOWER than n_workers=%d due to context switching. "
-            "Capping to %d.",
-            n_workers, available, available, available,
+            "Capping to %d." % (n_workers, available, available, available),
+            level=logging.WARNING,
         )
         n_workers = available
 
@@ -169,17 +185,17 @@ def mine_from_parquet(
         n_ok, n_failed, n_patterns, n_oversized = _mine_chunk_group(
             chunk_files, out_path, opt_level_filter, max_rows_per_chunk, show_progress=True,
         )
-        logger.info(
+        _announce(
             "Kaggle-parquet mining complete: %d ok, %d failed, %d patterns mined, "
-            "%d oversized windows skipped (> pair_diff.MAX_PATTERN_LEN) -> %s",
-            n_ok, n_failed, n_patterns, n_oversized, out_path,
+            "%d oversized windows skipped (> pair_diff.MAX_PATTERN_LEN) -> %s"
+            % (n_ok, n_failed, n_patterns, n_oversized, out_path)
         )
         return
 
     groups = _split_round_robin(chunk_files, n_workers)
     part_paths = [out_path.with_suffix(f".part{i}.jsonl") for i in range(n_workers)]
 
-    logger.info("Mining with %d worker processes across %d chunk files", n_workers, len(chunk_files))
+    _announce("Mining with %d worker processes across %d chunk files" % (n_workers, len(chunk_files)))
     results: list[tuple[int, int, int, int]] = []
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         futures = {
@@ -191,9 +207,9 @@ def mine_from_parquet(
             worker_id = futures[future]
             n_ok, n_failed, n_patterns, n_oversized = future.result()  # re-raises if the worker hit an unhandled exception
             results.append((n_ok, n_failed, n_patterns, n_oversized))
-            logger.info(
-                "Worker %d done: %d ok, %d failed, %d patterns mined, %d oversized skipped",
-                worker_id, n_ok, n_failed, n_patterns, n_oversized,
+            _announce(
+                "Worker %d done: %d ok, %d failed, %d patterns mined, %d oversized skipped"
+                % (worker_id, n_ok, n_failed, n_patterns, n_oversized)
             )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -209,8 +225,8 @@ def mine_from_parquet(
     total_failed = sum(r[1] for r in results)
     total_patterns = sum(r[2] for r in results)
     total_oversized = sum(r[3] for r in results)
-    logger.info(
+    _announce(
         "Kaggle-parquet mining complete (parallel, %d workers): %d ok, %d failed, %d patterns mined, "
-        "%d oversized windows skipped (> pair_diff.MAX_PATTERN_LEN) -> %s",
-        n_workers, total_ok, total_failed, total_patterns, total_oversized, out_path,
+        "%d oversized windows skipped (> pair_diff.MAX_PATTERN_LEN) -> %s"
+        % (n_workers, total_ok, total_failed, total_patterns, total_oversized, out_path)
     )
