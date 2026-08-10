@@ -58,11 +58,19 @@ def _instruction_for(name: str, params: tuple[float, ...]):
         "id": standard_gates.IGate, "x": standard_gates.XGate, "y": standard_gates.YGate,
         "z": standard_gates.ZGate, "h": standard_gates.HGate, "s": standard_gates.SGate,
         "sdg": standard_gates.SdgGate, "t": standard_gates.TGate, "tdg": standard_gates.TdgGate,
+        "sx": standard_gates.SXGate, "sxdg": standard_gates.SXdgGate,
         "rx": standard_gates.RXGate, "ry": standard_gates.RYGate, "rz": standard_gates.RZGate,
+        "p": standard_gates.PhaseGate, "u1": standard_gates.U1Gate,
+        "u2": standard_gates.U2Gate, "u3": standard_gates.U3Gate, "u": standard_gates.UGate,
         "cx": standard_gates.CXGate, "cy": standard_gates.CYGate, "cz": standard_gates.CZGate,
         "ch": standard_gates.CHGate, "swap": standard_gates.SwapGate, "crz": standard_gates.CRZGate,
+        "cp": standard_gates.CPhaseGate, "cu1": standard_gates.CU1Gate,
         "ccx": standard_gates.CCXGate,
     }
+    # MNISQ-OptBench's closed target basis is {rz, sx, x, cx} (confirmed from
+    # zx_opt.py's docstring in the dataset's own bundled source) — sx was the
+    # immediate crash; the rest above are defensive, standard Qiskit basis
+    # gates likely to appear across opt_levels not yet exercised.
     cls = gate_cls_map.get(name)
     if cls is None:
         raise ValueError(f"Unsupported gate '{name}' in rewrite — extend gate_cls_map in gate_sequence.py")
