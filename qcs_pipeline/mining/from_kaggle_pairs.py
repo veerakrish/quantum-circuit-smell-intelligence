@@ -66,15 +66,19 @@ def _mine_chunk_group(
     opt_level_filter: int | None,
     max_rows_per_chunk: int | None,
     show_progress: bool,
-) -> tuple[int, int]:
+) -> tuple[int, int, int, int]:
     """
     Mine a subset of chunk files into `out_path`. This is the unit of work
     each worker process (or the single sequential run) executes — module-level
     so it's picklable/importable by ProcessPoolExecutor workers, unlike a
     closure defined inline in a notebook cell.
+
+    Returns (n_ok, n_failed, n_patterns_mined, n_oversized_skipped) — the last
+    two make the pair_diff.MAX_PATTERN_LEN filter's effect visible in the log
+    instead of silently shrinking the rule database.
     """
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    n_ok, n_failed = 0, 0
+    n_ok, n_failed, n_patterns_mined, n_oversized_skipped = 0, 0, 0, 0
 
     iterator = tqdm(chunk_files, desc=f"Mining ({out_path.name})") if show_progress else chunk_files
 
@@ -106,13 +110,15 @@ def _mine_chunk_group(
                         "mined_patterns": [_pattern_to_dict(p) for p in report.patterns],
                     }) + "\n")
                     n_ok += 1
+                    n_patterns_mined += len(report.patterns)
+                    n_oversized_skipped += report.n_oversized_skipped
                 except Exception as exc:  # noqa: BLE001
                     n_failed += 1
                     logger.debug("Skipping %s: %s", source_id, exc)
 
             del df  # release this chunk's memory before the next iteration loads one
 
-    return n_ok, n_failed
+    return n_ok, n_failed, n_patterns_mined, n_oversized_skipped
 
 
 def _split_round_robin(items: list, n_groups: int) -> list[list]:
@@ -160,15 +166,21 @@ def mine_from_parquet(
         n_workers = available
 
     if n_workers <= 1:
-        n_ok, n_failed = _mine_chunk_group(chunk_files, out_path, opt_level_filter, max_rows_per_chunk, show_progress=True)
-        logger.info("Kaggle-parquet mining complete: %d ok, %d failed -> %s", n_ok, n_failed, out_path)
+        n_ok, n_failed, n_patterns, n_oversized = _mine_chunk_group(
+            chunk_files, out_path, opt_level_filter, max_rows_per_chunk, show_progress=True,
+        )
+        logger.info(
+            "Kaggle-parquet mining complete: %d ok, %d failed, %d patterns mined, "
+            "%d oversized windows skipped (> pair_diff.MAX_PATTERN_LEN) -> %s",
+            n_ok, n_failed, n_patterns, n_oversized, out_path,
+        )
         return
 
     groups = _split_round_robin(chunk_files, n_workers)
     part_paths = [out_path.with_suffix(f".part{i}.jsonl") for i in range(n_workers)]
 
     logger.info("Mining with %d worker processes across %d chunk files", n_workers, len(chunk_files))
-    results: list[tuple[int, int]] = []
+    results: list[tuple[int, int, int, int]] = []
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         futures = {
             executor.submit(_mine_chunk_group, group, part_path, opt_level_filter, max_rows_per_chunk, i == 0): i
@@ -177,9 +189,12 @@ def mine_from_parquet(
         }
         for future in as_completed(futures):
             worker_id = futures[future]
-            n_ok, n_failed = future.result()  # re-raises if the worker hit an unhandled exception
-            results.append((n_ok, n_failed))
-            logger.info("Worker %d done: %d ok, %d failed", worker_id, n_ok, n_failed)
+            n_ok, n_failed, n_patterns, n_oversized = future.result()  # re-raises if the worker hit an unhandled exception
+            results.append((n_ok, n_failed, n_patterns, n_oversized))
+            logger.info(
+                "Worker %d done: %d ok, %d failed, %d patterns mined, %d oversized skipped",
+                worker_id, n_ok, n_failed, n_patterns, n_oversized,
+            )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as merged:
@@ -192,7 +207,10 @@ def mine_from_parquet(
 
     total_ok = sum(r[0] for r in results)
     total_failed = sum(r[1] for r in results)
+    total_patterns = sum(r[2] for r in results)
+    total_oversized = sum(r[3] for r in results)
     logger.info(
-        "Kaggle-parquet mining complete (parallel, %d workers): %d ok, %d failed -> %s",
-        n_workers, total_ok, total_failed, out_path,
+        "Kaggle-parquet mining complete (parallel, %d workers): %d ok, %d failed, %d patterns mined, "
+        "%d oversized windows skipped (> pair_diff.MAX_PATTERN_LEN) -> %s",
+        n_workers, total_ok, total_failed, total_patterns, total_oversized, out_path,
     )

@@ -15,6 +15,20 @@ This is why the DETECTOR (detector/wire_matcher.py) re-verifies true wire
 adjacency independently before ever applying a mined rule to a new circuit —
 the miner only needs to be a good enough source of CANDIDATE patterns; it is
 not the layer responsible for correctness.
+
+SECOND KNOWN LIMITATION, specific to opt_level>=2 targets: Qiskit's
+ConsolidateBlocks + UnitarySynthesis passes resynthesize an entire 2-qubit
+interaction block into an unrelated gate sequence. difflib sees that as one
+big non-'equal' opcode covering the whole block, so naively it gets mined as
+a single "removed -> replacement" pattern spanning dozens of gates. That is
+NOT a generalizable local identity — it only holds for that one example's
+specific rotation angles, not for the same gate names appearing anywhere
+else. `MAX_PATTERN_LEN` below rejects any mined window (removed or
+replacement side) longer than this, which is what actually filters those
+whole-block resynthesis artifacts out at the source, independent of which
+opt_level the pairs came from — a real local rewrite (gate cancellation,
+adjacent rotation merge, small commutation) is a handful of gates; a
+resynthesized block is not.
 """
 from __future__ import annotations
 
@@ -25,6 +39,7 @@ from qcs_pipeline import qasm_compat
 from qcs_pipeline.mining.gate_sequence import GateOp, circuit_to_gate_ops
 
 CONTEXT_WINDOW = 2  # gates of 'equal' context kept on each side of a mined pattern
+MAX_PATTERN_LEN = 8  # reject removed/replacement windows longer than this (see module docstring)
 
 
 @dataclass
@@ -44,9 +59,12 @@ class MiningReport:
     n_gates_removed: int
     removed_gate_names: list[str]
     patterns: list[MinedPattern] = field(default_factory=list)
+    n_oversized_skipped: int = 0  # non-'equal' opcodes rejected for exceeding MAX_PATTERN_LEN
 
 
-def mine_pair(raw_qasm: str, transpiled_qasm: str, source_file: str = "") -> MiningReport:
+def mine_pair(
+    raw_qasm: str, transpiled_qasm: str, source_file: str = "", max_pattern_len: int = MAX_PATTERN_LEN,
+) -> MiningReport:
     raw_circ = qasm_compat.loads(raw_qasm)
     transpiled_circ = qasm_compat.loads(transpiled_qasm)
 
@@ -61,6 +79,7 @@ def mine_pair(raw_qasm: str, transpiled_qasm: str, source_file: str = "") -> Min
 
     patterns: list[MinedPattern] = []
     removed_gate_names: list[str] = []
+    n_oversized_skipped = 0
 
     for idx, (tag, a0, a1, b0, b1) in enumerate(opcodes):
         if tag == "equal":
@@ -68,6 +87,16 @@ def mine_pair(raw_qasm: str, transpiled_qasm: str, source_file: str = "") -> Min
 
         removed = raw_ops[a0:a1]
         replacement = transpiled_ops[b0:b1]
+
+        if len(removed) > max_pattern_len or len(replacement) > max_pattern_len:
+            # Almost certainly a whole resynthesized block (ConsolidateBlocks +
+            # UnitarySynthesis), not a generalizable local identity — see the
+            # module docstring's second known limitation. Skip mining it rather
+            # than feed the rule database a rule that can only ever match the
+            # exact circuit it was mined from.
+            n_oversized_skipped += 1
+            continue
+
         removed_gate_names.extend(op.name for op in removed)
 
         context_before = _tail_context(opcodes, idx, raw_ops, transpiled_ops, side="before")
@@ -88,6 +117,7 @@ def mine_pair(raw_qasm: str, transpiled_qasm: str, source_file: str = "") -> Min
         n_gates_removed=len(raw_ops) - len(transpiled_ops),
         removed_gate_names=removed_gate_names,
         patterns=patterns,
+        n_oversized_skipped=n_oversized_skipped,
     )
 
 
