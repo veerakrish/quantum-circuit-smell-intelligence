@@ -16,13 +16,14 @@ from qiskit import QuantumCircuit
 
 from qcs_pipeline.detector.wire_matcher import Match, WireDAG, build_wire_dag, find_matches
 from qcs_pipeline.mining.gate_sequence import GateOp, circuit_to_gate_ops, gate_ops_to_circuit
-from qcs_pipeline.rules.rule_database import RuleDatabase, RuleEntry
+from qcs_pipeline.rules.rule_database import RuleDatabase, RuleEntry, rule_id
 
 _PARAM_TOKEN_RE = re.compile(r"p(\d+)_(\d+)")
 
 
 @dataclass
 class Smell:
+    rule_id: str        # stable pattern+rewrite identity — see rule_database.rule_id()
     rule_pattern_names: list[str]
     matched_node_ids: list[int]
     matched_qubits: list[int]
@@ -39,6 +40,7 @@ def detect(circ: QuantumCircuit, db: RuleDatabase) -> tuple[list[Smell], WireDAG
         matches = find_matches(dag, entry.pattern)
         for m in matches:
             smells.append(Smell(
+                rule_id=rule_id(entry),
                 rule_pattern_names=[op.name for op in entry.pattern],
                 matched_node_ids=m.node_ids,
                 matched_qubits=sorted(set(m.role_map.values())),
@@ -179,6 +181,7 @@ def rewrite_with_matches(circ: QuantumCircuit, accepted: list[tuple[Match, RuleE
 def matches_to_smells(accepted: list[tuple[Match, RuleEntry]]) -> list[Smell]:
     return [
         Smell(
+            rule_id=rule_id(entry),
             rule_pattern_names=[o.name for o in entry.pattern],
             matched_node_ids=match.node_ids,
             matched_qubits=sorted(set(match.role_map.values())),

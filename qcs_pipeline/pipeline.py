@@ -25,7 +25,7 @@ from pathlib import Path
 
 from qcs_pipeline import qasm_compat
 from qcs_pipeline.detector.smell_detector import Smell, detect, find_candidate_matches
-from qcs_pipeline.rules.rule_database import RuleDatabase
+from qcs_pipeline.rules.rule_database import RuleDatabase, rule_id
 from qcs_pipeline.verification.bisect_repair import RepairResult, verify_and_repair
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class SmellOptimizationResult:
     fidelity: float
     applied_smells: list[Smell]
     quarantined_rule_count: int
+    quarantined_rules: list[tuple[str, str]]  # (rule_id, reason) — see rule_database.rule_id()
     n_simulations: int
 
 
@@ -72,5 +73,6 @@ class QuantumCircuitSmellOptimizer:
             fidelity=repair.fidelity,
             applied_smells=repair.accepted_smells,
             quarantined_rule_count=len(repair.quarantined),
+            quarantined_rules=[(rule_id(entry), reason) for entry, reason in repair.quarantined],
             n_simulations=repair.n_simulations,
         )

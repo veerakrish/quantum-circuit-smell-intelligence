@@ -109,6 +109,17 @@ class RuleDatabase:
         return db
 
 
+def rule_id(entry: RuleEntry) -> str:
+    """Stable, human-readable identity for a rule entry: pattern gate
+    sequence (with relative qubit roles) plus rewrite gate sequence. Used to
+    aggregate per-rule accept/quarantine telemetry across many circuits in
+    Stage 3 without relying on Python object identity (which breaks once a
+    RuleDatabase is reloaded from JSON, e.g. across notebook cells)."""
+    pattern_sig = "|".join(f"{op.name}{op.qubits}" for op in entry.pattern)
+    rewrite_sig = "|".join(f"{op.name}{op.qubits}" for op in entry.rewrite)
+    return f"{pattern_sig} -> {rewrite_sig}"
+
+
 def _op_to_dict(op: CanonicalOp) -> dict:
     return {"name": op.name, "qubits": list(op.qubits), "param_relation": list(op.param_relation)}
 
