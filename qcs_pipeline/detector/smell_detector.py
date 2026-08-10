@@ -92,20 +92,55 @@ def _eval_param_relation(expr: str, removed_ops: list[GateOp]) -> float:
     return total
 
 
+def is_structural_only(entry: RuleEntry) -> bool:
+    """True if any rewrite-side gate has an UNRESOLVED param relation — i.e.
+    canonicalize.py could not express its angle as a simple copy/negate/sum
+    of the removed gates' angles (common for rz->rz rewrites, where Qiskit
+    resynthesized a whole gate sequence into a new closed-form angle rather
+    than a linear combination of the old ones). Such rules are real,
+    frequently-observed patterns, but we cannot safely compute the replacement
+    parameter — applying them would require guessing a value, which
+    _eval_param_relation refuses to do. Kept in the database for detect()/audit
+    visibility; never selected as an applicable candidate."""
+    return any("UNRESOLVED" in op.param_relation for op in entry.rewrite)
+
+
 def find_candidate_matches(circ: QuantumCircuit, db: RuleDatabase) -> list[tuple[Match, RuleEntry]]:
-    """All accepted (non-overlapping, non-conflicting) rule matches for a
-    circuit — the unit of work `verification/bisect_repair.py` bisects over."""
+    """All accepted (non-overlapping, non-conflicting, fully-resolved) rule
+    matches for a circuit — the unit of work `verification/bisect_repair.py`
+    bisects over."""
     ops = circuit_to_gate_ops(circ)
     dag = build_wire_dag(ops)
 
     candidates: list[tuple[Match, RuleEntry]] = []
     for entry in db.entries():
-        if entry.conflict:
-            continue  # ambiguous rules are surfaced via detect(), never auto-applied
+        if entry.conflict or is_structural_only(entry):
+            continue  # ambiguous or param-unresolved rules are surfaced via detect(), never auto-applied
         for m in find_matches(dag, entry.pattern):
             candidates.append((m, entry))
 
     return _resolve_overlaps(candidates)
+
+
+def summarize_applicability(db: RuleDatabase) -> dict[str, int]:
+    """
+    Breaks down a RuleDatabase's entries by whether they can actually be
+    auto-applied. A raw `len(db.entries())` overstates what's usable — many
+    real, frequently-observed rewrites (rz->rz being the biggest offender)
+    have angle changes canonicalize.py couldn't express symbolically, and
+    those are never selected by find_candidate_matches regardless of how
+    often they were mined.
+    """
+    entries = db.entries()
+    n_conflict = sum(1 for e in entries if e.conflict)
+    n_structural_only = sum(1 for e in entries if not e.conflict and is_structural_only(e))
+    n_applicable = len(entries) - n_conflict - n_structural_only
+    return {
+        "total": len(entries),
+        "conflicting": n_conflict,
+        "structural_only": n_structural_only,
+        "applicable": n_applicable,
+    }
 
 
 def rewrite_with_matches(circ: QuantumCircuit, accepted: list[tuple[Match, RuleEntry]]) -> QuantumCircuit:
