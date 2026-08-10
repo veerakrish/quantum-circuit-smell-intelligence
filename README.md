@@ -110,6 +110,26 @@ print("fidelity:", result.fidelity)
 print("quarantined this run:", result.quarantined_rule_count)
 ```
 
+### Running on Kaggle
+
+`notebooks/` has three separate notebooks, one per stage, chained through
+Kaggle's own "attach another notebook's saved output as an Input" mechanism
+rather than one combined file — each is small enough to read and iterate on
+independently, and a Stage 3 bug fix doesn't require replaying Stage 1/2.
+
+1. **`01_mining.ipynb`** — mines `mined_pairs.jsonl` from the
+   `veerukhannan/mnisq-optbench-pairs` dataset's pre-transpiled pairs (~10 min
+   on Kaggle's 4-core CPU notebooks). Save a version when done.
+2. **`02_rule_building.ipynb`** — attach `01_mining`'s saved output as an
+   Input; canonicalizes into `rules.json` (~40 min — the expensive stage).
+   Save a version when done.
+3. **`03_optimize.ipynb`** — attach both the original dataset (for sample
+   circuits) and `02_rule_building`'s saved output; runs the verified
+   optimizer and reports results (seconds — the stage worth iterating on).
+
+Each notebook's setup cell states exactly which Input(s) it needs and fails
+fast with a clear message if one isn't attached.
+
 ## Known limitations / things to validate before production use
 
 - **Step 1's diff is approximate.** `mining/pair_diff.py` diffs the raw
