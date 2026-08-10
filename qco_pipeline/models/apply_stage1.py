@@ -7,13 +7,14 @@ This is the model-output -> circuit reconstruction step that Checksum 1
 from __future__ import annotations
 
 import torch
-from qiskit import QuantumCircuit, qasm2
+from qiskit import QuantumCircuit
 
+from qco_pipeline import qasm_compat
 from qco_pipeline.phase0.horizontal_labels import Action
 
 
 def apply_stage1_actions(raw_qasm: str, action_logits: torch.Tensor, predicted_angle: torch.Tensor) -> str:
-    circ = qasm2.loads(raw_qasm)
+    circ = qasm_compat.loads(raw_qasm)
     actions = action_logits.argmax(dim=-1).tolist()
 
     out = QuantumCircuit(circ.num_qubits, circ.num_clbits)
@@ -34,4 +35,4 @@ def apply_stage1_actions(raw_qasm: str, action_logits: torch.Tensor, predicted_a
 
         out.append(op, instruction.qubits, instruction.clbits)
 
-    return qasm2.dumps(out)
+    return qasm_compat.dumps(out)

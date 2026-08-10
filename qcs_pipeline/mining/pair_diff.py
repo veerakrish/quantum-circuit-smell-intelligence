@@ -21,8 +21,7 @@ from __future__ import annotations
 import difflib
 from dataclasses import dataclass, field
 
-from qiskit import qasm2
-
+from qcs_pipeline import qasm_compat
 from qcs_pipeline.mining.gate_sequence import GateOp, circuit_to_gate_ops
 
 CONTEXT_WINDOW = 2  # gates of 'equal' context kept on each side of a mined pattern
@@ -48,8 +47,8 @@ class MiningReport:
 
 
 def mine_pair(raw_qasm: str, transpiled_qasm: str, source_file: str = "") -> MiningReport:
-    raw_circ = qasm2.loads(raw_qasm)
-    transpiled_circ = qasm2.loads(transpiled_qasm)
+    raw_circ = qasm_compat.loads(raw_qasm)
+    transpiled_circ = qasm_compat.loads(transpiled_qasm)
 
     raw_ops = circuit_to_gate_ops(raw_circ)
     transpiled_ops = circuit_to_gate_ops(transpiled_circ)

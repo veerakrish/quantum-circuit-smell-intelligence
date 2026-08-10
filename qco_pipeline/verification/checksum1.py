@@ -18,8 +18,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from qiskit import QuantumCircuit, qasm2
+from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector, state_fidelity
+
+from qco_pipeline import qasm_compat
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +44,8 @@ def _strip_measurements(circ: QuantumCircuit) -> QuantumCircuit:
 
 
 def run_checksum1(raw_qasm: str, stage1_qasm: str) -> Checksum1Result:
-    raw_circ = _strip_measurements(qasm2.loads(raw_qasm))
-    stage1_circ = _strip_measurements(qasm2.loads(stage1_qasm))
+    raw_circ = _strip_measurements(qasm_compat.loads(raw_qasm))
+    stage1_circ = _strip_measurements(qasm_compat.loads(stage1_qasm))
 
     if raw_circ.num_qubits != stage1_circ.num_qubits:
         return Checksum1Result(

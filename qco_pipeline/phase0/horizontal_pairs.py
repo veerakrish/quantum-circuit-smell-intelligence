@@ -15,8 +15,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from qiskit import QuantumCircuit, qasm2, transpile
+from qiskit import QuantumCircuit, transpile
 from qiskit.circuit.library import standard_gates  # noqa: F401 (documents gate set assumption)
+
+from qco_pipeline import qasm_compat
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ def reduce_horizontal(raw_qasm: str, optimization_level: int = 3, basis_gates: l
     `basis_gates=None` keeps Qiskit's default universal basis so gate identities
     (e.g. RZ merging) are not obscured by an unrelated re-decomposition.
     """
-    raw_circ = qasm2.loads(raw_qasm)
+    raw_circ = qasm_compat.loads(raw_qasm)
     n_qubits = raw_circ.num_qubits
 
     horiz_circ = transpile(
@@ -67,7 +69,7 @@ def reduce_horizontal(raw_qasm: str, optimization_level: int = 3, basis_gates: l
 
     return HorizontalPair(
         raw_qasm=raw_qasm,
-        horiz_qasm=qasm2.dumps(horiz_circ),
+        horiz_qasm=qasm_compat.dumps(horiz_circ),
         n_qubits=n_qubits,
         raw_gate_count=sum(raw_circ.count_ops().values()),
         horiz_gate_count=sum(horiz_circ.count_ops().values()),

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import torch
-from qiskit import QuantumCircuit, qasm2
+from qiskit import QuantumCircuit
+
+from qco_pipeline import qasm_compat
 
 
 def apply_stage2_mask(horiz_qasm: str, keep_mask: torch.Tensor) -> tuple[str, list[int]]:
@@ -11,7 +13,7 @@ def apply_stage2_mask(horiz_qasm: str, keep_mask: torch.Tensor) -> tuple[str, li
     indices retained, listed in their new contiguous order — this mapping is
     exactly what Checksum 2's permutation-alignment step needs.
     """
-    circ = qasm2.loads(horiz_qasm)
+    circ = qasm_compat.loads(horiz_qasm)
     n = circ.num_qubits
 
     keep_mask_list = keep_mask.tolist()
@@ -38,4 +40,4 @@ def apply_stage2_mask(horiz_qasm: str, keep_mask: torch.Tensor) -> tuple[str, li
         new_qargs = [remap[q] for q in old_qargs]
         balanced.append(op, new_qargs, instruction.clbits)
 
-    return qasm2.dumps(balanced), kept_qubits
+    return qasm_compat.dumps(balanced), kept_qubits

@@ -19,10 +19,10 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-from qiskit import qasm2
 from tqdm import tqdm
 
 from qco_pipeline.phase0.horizontal_pairs import reduce_horizontal
+from qcs_pipeline import qasm_compat
 from qcs_pipeline.mining.gate_sequence import circuit_to_gate_ops
 from qcs_pipeline.mining.pair_diff import MinedPattern, mine_pair
 
@@ -68,8 +68,8 @@ def build(raw_dir: Path, out_path: Path) -> None:
                 h_pair = reduce_horizontal(raw_qasm)  # deterministic Qiskit transpile — same code path as qco_pipeline
                 transpiled_qasm = h_pair.horiz_qasm
 
-                raw_circ = qasm2.loads(raw_qasm)
-                transpiled_circ = qasm2.loads(transpiled_qasm)
+                raw_circ = qasm_compat.loads(raw_qasm)
+                transpiled_circ = qasm_compat.loads(transpiled_qasm)
 
                 report = mine_pair(raw_qasm, transpiled_qasm, source_file=qasm_file.name)
 

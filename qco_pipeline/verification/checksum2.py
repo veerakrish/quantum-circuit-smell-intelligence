@@ -22,9 +22,11 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
-from qiskit import QuantumCircuit, qasm2
+from qiskit import QuantumCircuit
 from qiskit.quantum_info import DensityMatrix, Statevector, partial_trace, state_fidelity
 from scipy.linalg import sqrtm
+
+from qco_pipeline import qasm_compat
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +68,8 @@ def run_checksum2(raw_qasm: str, balanced_qasm: str, kept_qubits: list[int]) -> 
     models/apply_stage2.apply_stage2_mask / phase0/vertical_pairs.prune_idle_wires
     both return alongside the QASM string.
     """
-    raw_circ = _strip_measurements(qasm2.loads(raw_qasm))
-    balanced_circ = _strip_measurements(qasm2.loads(balanced_qasm))
+    raw_circ = _strip_measurements(qasm_compat.loads(raw_qasm))
+    balanced_circ = _strip_measurements(qasm_compat.loads(balanced_qasm))
 
     n = raw_circ.num_qubits
     k = balanced_circ.num_qubits
